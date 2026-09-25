@@ -33,6 +33,8 @@ The app reads `config/config.yaml` from the Chia root and uses these values from
 
 When it starts, it asks the daemon to start `chia_wallet`, the same way the Electron app does.
 
+**macOS:** the Xcode Command Line Tools are enough (`xcode-select --install`). GPUI's Metal shaders are compiled when the app starts (the `runtime_shaders` feature), so the `metal` compiler from full Xcode isn't needed.
+
 **Linux build dependencies** (the same ones GPUI needs): `libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev libfontconfig-dev libfreetype-dev libzstd-dev`, a Vulkan driver, and `clang`.
 
 ### End-to-end against a mock daemon
