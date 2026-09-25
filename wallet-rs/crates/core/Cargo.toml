@@ -1,0 +1,33 @@
+[package]
+name = "chia-wallet-core"
+description = "UI-agnostic core for the native Chia wallet: daemon mTLS client, typed wallet RPC, amounts, addresses, mnemonics."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bech32 = "0.11"
+dirs = "6"
+futures = "0.3"
+getrandom = "0.3"
+hex = "0.4"
+log = "0.4"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "net", "sync", "time", "macros", "io-util"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }
+zeroize = { version = "1", features = ["derive", "serde"] }
+
+[dev-dependencies]
+rcgen = "0.14"
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }
