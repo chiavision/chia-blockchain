@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
 use gpui::{
-    Animation, AnimationExt, AnyElement, Context, Entity, FontWeight, SharedString, Subscription, Task, Window, div,
-    linear_color_stop, linear_gradient, px,
+    Animation, AnimationExt, AnyElement, Context, Entity, FocusHandle, FontWeight, SharedString, Subscription, Task,
+    Window, div, linear_color_stop, linear_gradient, px,
 };
 
 use crate::assets::Icon;
@@ -14,7 +14,7 @@ use crate::keys::KeysScreen;
 use crate::shell::Shell;
 use crate::store::{Phase, Store, ToastKind};
 use crate::theme;
-use crate::widgets::{Button, card, icon, icon_button, mono, spinner};
+use crate::widgets::{Button, Dismiss, OpenSettings, card, icon, icon_button, mono, spinner};
 
 const IDLE_HIDE: Duration = Duration::from_secs(120);
 
@@ -23,6 +23,9 @@ pub struct WalletApp {
     keys: Entity<KeysScreen>,
     shell: Option<Entity<Shell>>,
     fatal: Option<SharedString>,
+    /// Holds keyboard focus whenever nothing else does, so Esc and the
+    /// settings shortcut always reach us.
+    focus: FocusHandle,
     last_input: Instant,
     _subs: Vec<Subscription>,
     _idle: Task<()>,
@@ -69,9 +72,12 @@ impl WalletApp {
                 }
             }
         });
+        let focus = cx.focus_handle();
+        window.focus(&focus);
         Self {
             store,
             keys,
+            focus,
             shell: None,
             fatal: fatal.map(Into::into),
             last_input: Instant::now(),
@@ -213,7 +219,13 @@ impl WalletApp {
 }
 
 impl Render for WalletApp {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // When a focused input disappears (dialog closed, screen changed),
+        // take focus back so keyboard shortcuts keep working.
+        if window.focused(cx).is_none() {
+            let focus = self.focus.clone();
+            window.defer(cx, move |window, _| window.focus(&focus));
+        }
         let body = if let Some(err) = self.fatal.clone() {
             Self::fatal_screen(err, cx)
         } else {
@@ -246,6 +258,17 @@ impl Render for WalletApp {
             .bg(theme::bg())
             .font_family(theme::SANS)
             .text_color(theme::text())
+            // Handled here so they work whatever is focused inside.
+            .track_focus(&self.focus)
+            .on_action(cx.listener(|this, _: &Dismiss, _, cx| match &this.shell {
+                Some(shell) => shell.update(cx, |s, cx| s.dismiss(cx)),
+                None => this.keys.update(cx, |k, cx| k.dismiss(cx)),
+            }))
+            .on_action(cx.listener(|this, _: &OpenSettings, _, cx| {
+                if let Some(shell) = &this.shell {
+                    shell.update(cx, |s, cx| s.open_settings_general(cx));
+                }
+            }))
             .on_mouse_move(cx.listener(|this, _, _, _| this.last_input = Instant::now()))
             .capture_key_down(cx.listener(|this, _, _, _| this.last_input = Instant::now()))
             .child(body)

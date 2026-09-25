@@ -187,6 +187,7 @@ fn bind_keys(cx: &mut App) {
         KeyBinding::new("shift-tab", ti::TabPrev, ctx),
         KeyBinding::new("secondary-q", Quit, None),
         KeyBinding::new("escape", widgets::Dismiss, None),
+        KeyBinding::new("secondary-,", widgets::OpenSettings, None),
     ]);
 }
 

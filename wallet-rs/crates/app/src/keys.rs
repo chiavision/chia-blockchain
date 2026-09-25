@@ -15,7 +15,7 @@ use crate::assets::Icon;
 use crate::store::{Store, ToastKind};
 use crate::text_input::{self, InputEvent, TextInput};
 use crate::theme;
-use crate::widgets::{Button, Callout, Dismiss, callout, card, eyebrow, icon, icon_button, modal, mono, spinner};
+use crate::widgets::{Button, Callout, callout, card, eyebrow, icon, icon_button, modal, mono, spinner};
 
 const REVEAL_FOR: Duration = Duration::from_secs(30);
 
@@ -105,6 +105,13 @@ impl KeysScreen {
             import_input,
             delete_input,
             _subs: subs,
+        }
+    }
+
+    /// Close any open dialog (Esc).
+    pub fn dismiss(&mut self, cx: &mut Context<Self>) {
+        if self.dialog.take().is_some() {
+            cx.notify();
         }
     }
 
@@ -576,6 +583,10 @@ impl KeysScreen {
                 modal(
                     "delete-dialog",
                     440.,
+                    cx.listener(|this, _: &gpui::MouseDownEvent, _, cx| {
+                        this.dialog = None;
+                        cx.notify();
+                    }),
                     div()
                         .flex()
                         .flex_col()
@@ -609,6 +620,10 @@ impl KeysScreen {
                 modal(
                     "reveal-dialog",
                     440.,
+                    cx.listener(|this, _: &gpui::MouseDownEvent, _, cx| {
+                        this.dialog = None;
+                        cx.notify();
+                    }),
                     div()
                         .flex()
                         .flex_col()
@@ -634,6 +649,10 @@ impl KeysScreen {
             Dialog::Revealed { fingerprint, phrase } => modal(
                 "phrase-dialog",
                 620.,
+                cx.listener(|this, _: &gpui::MouseDownEvent, _, cx| {
+                    this.dialog = None;
+                    cx.notify();
+                }),
                 div()
                     .flex()
                     .flex_col()
@@ -680,10 +699,6 @@ impl Render for KeysScreen {
         div()
             .id("keys-screen")
             .relative()
-            .on_action(cx.listener(|this, _: &Dismiss, _, cx| {
-                this.dialog = None;
-                cx.notify();
-            }))
             .size_full()
             .flex()
             .flex_col()

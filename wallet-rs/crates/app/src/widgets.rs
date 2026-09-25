@@ -4,14 +4,14 @@ use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    Animation, AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FontWeight, Rgba, SharedString, Svg,
-    Transformation, Window, div, percentage, px, svg,
+    Animation, AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FontWeight, MouseButton, MouseDownEvent,
+    Rgba, SharedString, Svg, Transformation, Window, div, percentage, px, svg,
 };
 
 use crate::assets::Icon;
 use crate::theme;
 
-gpui::actions!(wallet, [Dismiss]);
+gpui::actions!(wallet, [Dismiss, OpenSettings]);
 
 pub fn icon(i: Icon) -> Svg {
     svg().path(i.path()).size_4().flex_none().text_color(theme::text_dim())
@@ -263,8 +263,13 @@ pub fn icon_button(id: impl Into<ElementId>, i: Icon) -> gpui::Stateful<Div> {
         .child(icon(i))
 }
 
-/// A modal dialog over a dimmed backdrop. Mouse events don't reach the page below.
-pub fn modal(id: impl Into<ElementId>, width: f32, content: impl IntoElement) -> AnyElement {
+/// A dimmed full-window backdrop. Clicking it (outside `child`) calls
+/// `on_dismiss`; mouse events never reach the page underneath.
+pub fn backdrop(
+    id: impl Into<ElementId>,
+    child: impl IntoElement,
+    on_dismiss: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+) -> AnyElement {
     div()
         .id(id)
         .absolute()
@@ -272,21 +277,59 @@ pub fn modal(id: impl Into<ElementId>, width: f32, content: impl IntoElement) ->
         .flex()
         .items_center()
         .justify_center()
+        .p_6()
         .bg(theme::scrim())
         .occlude()
+        .on_mouse_down(MouseButton::Left, on_dismiss)
         .child(
-            card()
-                .w(px(width))
+            div()
                 .max_w_full()
-                .p_6()
-                .gap_4()
-                .bg(theme::surface_hi())
-                .border_color(theme::border_hi())
-                .shadow_lg()
-                .child(content),
+                .max_h_full()
+                .flex()
+                // Clicks inside the dialog must not count as clicking away.
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(child),
         )
         .with_animation("modal-in", Animation::new(Duration::from_millis(140)), |el, delta| {
             el.opacity(delta)
         })
         .into_any_element()
+}
+
+/// A standard dialog card over a backdrop.
+pub fn modal(
+    id: impl Into<ElementId>,
+    width: f32,
+    on_dismiss: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+    content: impl IntoElement,
+) -> AnyElement {
+    backdrop(
+        id,
+        card()
+            .w(px(width))
+            .max_w_full()
+            .p_6()
+            .gap_4()
+            .bg(theme::surface_hi())
+            .border_color(theme::border_hi())
+            .shadow_lg()
+            .child(content),
+        on_dismiss,
+    )
+}
+
+/// An on/off switch. Attach `.on_click` to toggle.
+pub fn switch(id: impl Into<ElementId>, on: bool) -> gpui::Stateful<Div> {
+    div()
+        .id(id)
+        .flex()
+        .flex_none()
+        .w(px(40.))
+        .h(px(22.))
+        .rounded_full()
+        .p(px(3.))
+        .when(on, |d| d.justify_end())
+        .bg(if on { theme::accent() } else { theme::border_hi() })
+        .cursor_pointer()
+        .child(div().size(px(16.)).rounded_full().bg(theme::rgb_white()).shadow_sm())
 }

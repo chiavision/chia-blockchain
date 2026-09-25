@@ -17,9 +17,9 @@ use crate::qr::qr_code;
 use crate::send::{PendingSend, SendForm, SendFormEvent};
 use crate::store::Store;
 use crate::theme;
-use crate::widgets::{
-    Button, Callout, Dismiss, badge, callout, card, dot, eyebrow, icon, icon_button, modal, mono, spinner,
-};
+use crate::widgets::{Button, Callout, badge, callout, card, dot, eyebrow, icon, icon_button, modal, mono, spinner};
+
+mod settings;
 
 const ARM_DELAY: Duration = Duration::from_millis(1500);
 
@@ -29,7 +29,6 @@ pub enum Page {
     Send,
     Receive,
     Activity,
-    Security,
 }
 
 impl Page {
@@ -39,7 +38,6 @@ impl Page {
             Page::Send => "Send",
             Page::Receive => "Receive",
             Page::Activity => "Activity",
-            Page::Security => "Security",
         }
     }
 
@@ -49,7 +47,6 @@ impl Page {
             Page::Send => Icon::Send,
             Page::Receive => Icon::Receive,
             Page::Activity => Icon::Activity,
-            Page::Security => Icon::Shield,
         }
     }
 }
@@ -61,6 +58,7 @@ enum ShellModal {
         submitting: bool,
     },
     Tx(Box<TransactionRecord>),
+    Settings(settings::Section),
 }
 
 pub struct Shell {
@@ -204,6 +202,27 @@ impl Shell {
         cx.notify();
     }
 
+    /// Close the open dialog (Esc), unless a send is mid-submission.
+    pub fn dismiss(&mut self, cx: &mut Context<Self>) {
+        if self.modal.is_some() && !matches!(self.modal, Some(ShellModal::Confirm { submitting: true, .. })) {
+            self.modal = None;
+            cx.notify();
+        }
+    }
+
+    /// Open settings (the sidebar entry or the platform shortcut).
+    pub fn open_settings_general(&mut self, cx: &mut Context<Self>) {
+        self.open_settings(settings::Section::General, cx);
+    }
+
+    fn open_settings(&mut self, section: settings::Section, cx: &mut Context<Self>) {
+        // Never replace a send that's being confirmed or submitted.
+        if !matches!(self.modal, Some(ShellModal::Confirm { .. })) {
+            self.modal = Some(ShellModal::Settings(section));
+            cx.notify();
+        }
+    }
+
     fn go(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
         self.page = page;
         if page == Page::Send {
@@ -337,37 +356,31 @@ impl Shell {
                 )
         });
 
-        let nav = [
-            Page::Overview,
-            Page::Send,
-            Page::Receive,
-            Page::Activity,
-            Page::Security,
-        ]
-        .into_iter()
-        .map(|p| {
-            let active = p == self.page;
-            let enabled = spendable || !matches!(p, Page::Send | Page::Receive);
-            div()
-                .id(SharedString::from(format!("nav-{:?}", p)))
-                .flex()
-                .items_center()
-                .gap_3()
-                .px_3()
-                .h(px(36.))
-                .rounded_lg()
-                .text_sm()
-                .when(active, |d| d.bg(theme::surface_hi()).text_color(theme::text()))
-                .when(!active, |d| d.text_color(theme::text_dim()))
-                .when(enabled, |d| {
-                    d.cursor_pointer()
-                        .hover(|s| s.bg(theme::surface_hover()))
-                        .on_click(cx.listener(move |this, _, window, cx| this.go(p, window, cx)))
-                })
-                .when(!enabled, |d| d.opacity(0.35))
-                .child(icon(p.icon()).text_color(if active { theme::accent_hi() } else { theme::text_dim() }))
-                .child(p.title())
-        });
+        let nav = [Page::Overview, Page::Send, Page::Receive, Page::Activity]
+            .into_iter()
+            .map(|p| {
+                let active = p == self.page;
+                let enabled = spendable || !matches!(p, Page::Send | Page::Receive);
+                div()
+                    .id(SharedString::from(format!("nav-{:?}", p)))
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .px_3()
+                    .h(px(36.))
+                    .rounded_lg()
+                    .text_sm()
+                    .when(active, |d| d.bg(theme::surface_hi()).text_color(theme::text()))
+                    .when(!active, |d| d.text_color(theme::text_dim()))
+                    .when(enabled, |d| {
+                        d.cursor_pointer()
+                            .hover(|s| s.bg(theme::surface_hover()))
+                            .on_click(cx.listener(move |this, _, window, cx| this.go(p, window, cx)))
+                    })
+                    .when(!enabled, |d| d.opacity(0.35))
+                    .child(icon(p.icon()).text_color(if active { theme::accent_hi() } else { theme::text_dim() }))
+                    .child(p.title())
+            });
 
         let (sync_color, sync_label) = if !store.connected {
             (theme::danger(), "Daemon offline")
@@ -426,7 +439,32 @@ impl Shell {
             .child(div().px_5().pt_2().pb_2().child(eyebrow("Wallets")))
             .child(div().flex().flex_col().gap_1().px_3().children(wallets))
             .child(div().px_5().pt_6().pb_2().child(eyebrow("Navigate")))
-            .child(div().flex().flex_col().gap_1().px_3().children(nav))
+            .child(
+                div().flex().flex_col().gap_1().px_3().children(nav).child(
+                    div()
+                        .id("nav-settings")
+                        .flex()
+                        .items_center()
+                        .gap_3()
+                        .px_3()
+                        .h(px(36.))
+                        .rounded_lg()
+                        .text_sm()
+                        .text_color(theme::text_dim())
+                        .cursor_pointer()
+                        .hover(|s| s.bg(theme::surface_hover()))
+                        .on_click(cx.listener(|this, _, _, cx| this.open_settings(settings::Section::General, cx)))
+                        .child(icon(Icon::Settings))
+                        .child("Settings")
+                        .child(div().flex_1())
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(theme::muted())
+                                .child(settings::SHORTCUT_HINT),
+                        ),
+                ),
+            )
             .child(div().flex_1())
             .child(
                 div()
@@ -522,9 +560,7 @@ impl Shell {
                     .text_color(theme::text())
                     .child(self.page.title()),
             )
-            .when(self.page != Page::Security, |d| {
-                d.child(div().text_sm().text_color(theme::muted()).child(wallet_name))
-            })
+            .child(div().text_sm().text_color(theme::muted()).child(wallet_name))
             .child(div().flex_1())
             .when(offline, |d| {
                 d.child(badge("Reconnecting to daemon…", theme::danger(), theme::danger_soft()))
@@ -992,141 +1028,6 @@ impl Shell {
             .into_any_element()
     }
 
-    fn security(&self, cx: &mut Context<Self>) -> AnyElement {
-        let store = self.store.read(cx);
-        let sec = store.security.clone();
-        let auto = store.auto_privacy;
-        let item = |ok: bool, title: &str, body: &str| {
-            div()
-                .flex()
-                .gap_3()
-                .py_3()
-                .border_b_1()
-                .border_color(theme::border())
-                .child(
-                    icon(if ok { Icon::Check } else { Icon::Alert })
-                        .text_color(if ok { theme::accent_hi() } else { theme::warning() })
-                        .mt(px(2.)),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .flex_1()
-                        .min_w_0()
-                        .gap_1()
-                        .child(
-                            div()
-                                .text_sm()
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(theme::text())
-                                .child(title.to_owned()),
-                        )
-                        .child(div().text_sm().text_color(theme::text_dim()).child(body.to_owned())),
-                )
-        };
-
-        let transport = if sec.demo {
-            item(
-                true,
-                "Demo backend",
-                "Running against an in-process simulator. Nothing leaves this process.",
-            )
-        } else {
-            item(
-                true,
-                "Daemon identity is verified",
-                "The daemon's TLS certificate must chain to your private CA (private_ca.crt). The Electron wallet accepted any certificate.",
-            )
-        };
-
-        div()
-            .flex()
-            .flex_col()
-            .gap_6()
-            .max_w(px(820.))
-            .child(
-                card()
-                    .p_6()
-                    .gap_1()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_3()
-                            .pb_2()
-                            .child(icon(Icon::Shield).size(px(22.)).text_color(theme::accent_hi()))
-                            .child(div().text_lg().font_weight(FontWeight::SEMIBOLD).text_color(theme::text()).child("Active protections")),
-                    )
-                    .child(mono(sec.endpoint.clone()).text_xs().text_color(theme::muted()).pb_2())
-                    .child(transport)
-                    .child(item(!sec.remote_allowed, "Local daemon only", if sec.remote_allowed {
-                        "--allow-remote-daemon is set: the daemon may be on another machine. Make sure you control it."
-                    } else {
-                        "Non-loopback daemon hosts are refused unless you pass --allow-remote-daemon."
-                    }))
-                    .child(item(true, "Strict address checks", "bech32m checksum, this network's prefix and a 32-byte payload — checked in the form and again right before sending."))
-                    .child(item(true, "Exact amounts", "Amounts are integers in mojo end to end. No floating point, no rounding, overflow is an error."))
-                    .child(item(true, "Deliberate sending", "Every spend goes through a full review; the confirm button arms after 1.5 s to stop double-clicks and click-jacking."))
-                    .child(item(true, "Secrets stay put", "Recovery phrases live in memory that is wiped on drop, are masked by default, cannot be copied and are never logged."))
-                    .child(item(true, "Short-lived clipboard", "Copied addresses are wiped from the clipboard after 45 seconds if still there."))
-                    .child(item(true, "No backup-server lookups", "Keys are unlocked in skip mode, so nothing derived from your key is sent to backup.chia.net."))
-                    .child(item(true, "No web engine", "No JavaScript, no remote content, no nodeIntegration. Every icon and font is compiled into the binary."))
-                    .when_some(sec.key_file_warning.clone(), |d, w| d.child(item(false, "Loose key file permissions", &w))),
-            )
-            .child(
-                card()
-                    .p_6()
-                    .gap_3()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_1()
-                                    .child(div().text_sm().font_weight(FontWeight::MEDIUM).text_color(theme::text()).child("Auto-hide balances"))
-                                    .child(div().text_sm().text_color(theme::text_dim()).child("Hide amounts when the window loses focus or after 2 minutes idle.")),
-                            )
-                            .child(
-                                div()
-                                    .id("auto-privacy")
-                                    .w(px(44.))
-                                    .h(px(24.))
-                                    .rounded_full()
-                                    .p(px(3.))
-                                    .flex()
-                                    .when(auto, |d| d.justify_end())
-                                    .bg(if auto { theme::accent() } else { theme::border_hi() })
-                                    .cursor_pointer()
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.store.update(cx, |s, cx| {
-                                            s.auto_privacy = !auto;
-                                            cx.notify();
-                                        })
-                                    }))
-                                    .child(div().size(px(18.)).rounded_full().bg(theme::rgb_white())),
-                            ),
-                    ),
-            )
-            .child(
-                card()
-                    .p_6()
-                    .gap_2()
-                    .child(eyebrow("Honest limits"))
-                    .child(div().text_sm().text_color(theme::text_dim()).child(
-                        "Locking returns to the key picker, but the daemon has no password: it keeps the key loaded until it stops. Stop the daemon for a hard lock.",
-                    ))
-                    .child(div().text_sm().text_color(theme::text_dim()).child(
-                        "Keys ultimately live in the Chia daemon's keychain. On Linux this chia version encrypts it with a fixed password (chia/util/keychain.py), so protect your user account and disk.",
-                    )),
-            )
-            .into_any_element()
-    }
-
     // ----- dialogs ------------------------------------------------------------------------------
 
     fn render_modal(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -1186,6 +1087,12 @@ impl Shell {
                 modal(
                     "confirm-send",
                     520.,
+                    cx.listener(|this, _: &gpui::MouseDownEvent, _, cx| {
+                        if !matches!(this.modal, Some(ShellModal::Confirm { submitting: true, .. })) {
+                            this.modal = None;
+                            cx.notify();
+                        }
+                    }),
                     div()
                         .flex()
                         .flex_col()
@@ -1265,6 +1172,7 @@ impl Shell {
                         ),
                 )
             }
+            ShellModal::Settings(section) => self.render_settings(*section, cx),
             ShellModal::Tx(tx) => {
                 let denom = store.denom_for(tx.wallet_id);
                 let ticker = store.ticker(tx.wallet_id);
@@ -1279,6 +1187,10 @@ impl Shell {
                 modal(
                     "tx-details",
                     560.,
+                    cx.listener(|this, _: &gpui::MouseDownEvent, _, cx| {
+                        this.modal = None;
+                        cx.notify();
+                    }),
                     div()
                         .flex()
                         .flex_col()
@@ -1353,7 +1265,6 @@ impl Render for Shell {
                 .into_any_element(),
             Page::Receive => div().flex().flex_col().child(self.receive(cx)).into_any_element(),
             Page::Activity => self.activity(cx),
-            Page::Security => self.security(cx),
         };
         let fill_height = self.page == Page::Activity;
         div()
@@ -1361,12 +1272,6 @@ impl Render for Shell {
             .size_full()
             .flex()
             .bg(theme::bg())
-            .on_action(cx.listener(|this, _: &Dismiss, _, cx| {
-                if !matches!(this.modal, Some(ShellModal::Confirm { submitting: true, .. })) {
-                    this.modal = None;
-                    cx.notify();
-                }
-            }))
             .child(self.sidebar(cx))
             .child(
                 div()
@@ -1378,7 +1283,7 @@ impl Render for Shell {
                     .child(self.header(cx))
                     .child(
                         div()
-                            .id("page")
+                            .id(("page", self.page as usize))
                             .flex()
                             .flex_col()
                             .flex_1()
@@ -1386,7 +1291,11 @@ impl Render for Shell {
                             .px_8()
                             .py_6()
                             .when(!fill_height, |d| d.overflow_y_scroll())
-                            .child(page),
+                            .child(if fill_height {
+                                page
+                            } else {
+                                div().flex().flex_col().flex_none().child(page).into_any_element()
+                            }),
                     ),
             )
             .children(self.render_modal(cx))

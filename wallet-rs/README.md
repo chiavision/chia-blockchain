@@ -7,8 +7,8 @@ A native desktop wallet for Chia, built on [GPUI](https://www.gpui.rs/) (the UI 
 | Review before sending | Receive |
 |---|---|
 | ![Send review](docs/screenshots/send-review.png) | ![Receive](docs/screenshots/receive.png) |
-| **Keys** | **Security** |
-| ![Keys](docs/screenshots/keys.png) | ![Security](docs/screenshots/security.png) |
+| **Keys** | **Settings** |
+| ![Keys](docs/screenshots/keys.png) | ![Settings](docs/screenshots/security.png) |
 
 ## Running it
 
@@ -69,7 +69,8 @@ wallet-rs/
     ├── store.rs     single state entity + async controller (all RPCs go through here)
     ├── root.rs      phase routing, toasts, blur/idle privacy
     ├── keys.rs      key picker, create (with backup verification), import, delete, reveal
-    ├── shell.rs     sidebar, overview, receive (QR), activity (virtualised list), security, dialogs
+    ├── shell.rs     sidebar, overview, receive (QR), activity (virtualised list), dialogs
+    ├── shell/settings.rs  settings modal: general, security, connection, about
     ├── send.rs      validated send form → confirmation dialog
     ├── text_input.rs  zeroizing, maskable text field (adapted from GPUI's input example)
     └── qr.rs        QR painted as quads
