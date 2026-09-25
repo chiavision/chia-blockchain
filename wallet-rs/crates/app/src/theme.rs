@@ -5,6 +5,14 @@ use gpui::{Hsla, Rgba, rgb, rgba};
 pub const SANS: &str = "Inter";
 pub const MONO: &str = "JetBrains Mono";
 
+/// Height of the unified top bar. On macOS the traffic lights sit inside it,
+/// within AppKit's ~28 px draggable titlebar strip.
+pub const TOPBAR_H: f32 = 42.;
+/// Where macOS draws the traffic lights (from the window's top-left).
+pub const TRAFFIC_LIGHTS: (f32, f32) = (16., 14.);
+/// Horizontal space the traffic lights take up, or 0 where there are none.
+pub const TRAFFIC_LIGHTS_W: f32 = if cfg!(target_os = "macos") { 76. } else { 0. };
+
 pub fn bg() -> Rgba {
     rgb(0x0a0c0f)
 }

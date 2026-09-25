@@ -14,7 +14,7 @@ use crate::keys::KeysScreen;
 use crate::shell::Shell;
 use crate::store::{Phase, Store, ToastKind};
 use crate::theme;
-use crate::widgets::{Button, Dismiss, OpenSettings, card, icon, icon_button, mono, spinner};
+use crate::widgets::{Button, Dismiss, OpenSettings, card, icon, icon_button, mono, spinner, titlebar_area};
 
 const IDLE_HIDE: Duration = Duration::from_secs(120);
 
@@ -272,6 +272,18 @@ impl Render for WalletApp {
             .on_mouse_move(cx.listener(|this, _, _, _| this.last_input = Instant::now()))
             .capture_key_down(cx.listener(|this, _, _, _| this.last_input = Instant::now()))
             .child(body)
+            // Full-window screens have no top bar; keep an invisible one so the
+            // window can still be zoomed by double-clicking the top edge on macOS.
+            .when(self.shell.is_none(), |d| {
+                d.child(
+                    titlebar_area("root-titlebar")
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .h(px(theme::TOPBAR_H)),
+                )
+            })
             .child(self.toasts(cx))
     }
 }

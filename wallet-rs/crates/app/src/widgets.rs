@@ -25,6 +25,33 @@ pub fn spinner(id: impl Into<ElementId>) -> impl IntoElement {
     )
 }
 
+/// Double-clicking empty top-bar space zooms/minimises the window as the
+/// user's macOS preference says. (Dragging is handled natively by AppKit.)
+pub fn titlebar_area(id: impl Into<ElementId>) -> gpui::Stateful<Div> {
+    div().id(id).on_click(|ev, window, _| {
+        if ev.click_count() == 2 {
+            window.titlebar_double_click();
+        }
+    })
+}
+
+/// The brand mark used in the top bar and dialogs.
+pub fn logo(size: f32) -> Div {
+    div()
+        .size(px(size))
+        .flex_none()
+        .rounded_lg()
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(gpui::linear_gradient(
+            135.,
+            gpui::linear_color_stop(theme::accent_hi(), 0.),
+            gpui::linear_color_stop(theme::teal(), 1.),
+        ))
+        .child(icon(Icon::Leaf).size(px(size * 0.6)).text_color(theme::rgb_white()))
+}
+
 pub fn card() -> Div {
     div()
         .flex()

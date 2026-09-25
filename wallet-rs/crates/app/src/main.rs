@@ -216,8 +216,10 @@ fn main() {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(TitlebarOptions {
                 title: Some("Chia Wallet".into()),
-                appears_transparent: false,
-                traffic_light_position: Some(point(px(12.), px(12.))),
+                // macOS: draw our own top bar under the traffic lights, like
+                // Chrome/Signal. Elsewhere keep the native titlebar.
+                appears_transparent: cfg!(target_os = "macos"),
+                traffic_light_position: Some(point(px(theme::TRAFFIC_LIGHTS.0), px(theme::TRAFFIC_LIGHTS.1))),
             }),
             window_min_size: Some(size(px(980.), px(640.))),
             app_id: Some("net.chia.wallet-native".into()),

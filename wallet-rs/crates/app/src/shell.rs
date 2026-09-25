@@ -17,10 +17,13 @@ use crate::qr::qr_code;
 use crate::send::{PendingSend, SendForm, SendFormEvent};
 use crate::store::Store;
 use crate::theme;
-use crate::widgets::{Button, Callout, badge, callout, card, dot, eyebrow, icon, icon_button, modal, mono, spinner};
+use crate::widgets::{
+    Button, Callout, badge, callout, card, dot, eyebrow, icon, icon_button, logo, modal, mono, spinner, titlebar_area,
+};
 
 mod settings;
 
+const SIDEBAR_W: f32 = 252.;
 const ARM_DELAY: Duration = Duration::from_millis(1500);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -392,51 +395,17 @@ impl Shell {
             (theme::muted(), "Not synced")
         };
         let fingerprint = store.fingerprint.map(|f| f.to_string()).unwrap_or_default();
-        let net = store.network.network_name.to_uppercase();
 
         div()
             .flex()
             .flex_col()
             .flex_none()
-            .w(px(252.))
+            .w(px(SIDEBAR_W))
             .h_full()
             .bg(theme::sidebar())
             .border_r_1()
             .border_color(theme::border())
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_3()
-                    .px_5()
-                    .h(px(64.))
-                    .child(
-                        div()
-                            .size(px(30.))
-                            .rounded_lg()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .bg(linear_gradient(
-                                135.,
-                                linear_color_stop(theme::accent_hi(), 0.),
-                                linear_color_stop(theme::teal(), 1.),
-                            ))
-                            .child(icon(Icon::Leaf).size(px(18.)).text_color(theme::rgb_white())),
-                    )
-                    .child(
-                        div()
-                            .text_base()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(theme::text())
-                            .child("Chia"),
-                    )
-                    .child(div().flex_1())
-                    .when(!net.is_empty(), |d| {
-                        d.child(badge(net, theme::accent_hi(), theme::accent_soft()))
-                    }),
-            )
-            .child(div().px_5().pt_2().pb_2().child(eyebrow("Wallets")))
+            .child(div().px_5().pt_4().pb_2().child(eyebrow("Wallets")))
             .child(div().flex().flex_col().gap_1().px_3().children(wallets))
             .child(div().px_5().pt_6().pb_2().child(eyebrow("Navigate")))
             .child(
@@ -538,45 +507,92 @@ impl Shell {
 
     // ----- pages -----------------------------------------------------------------------------
 
-    fn header(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The unified top bar: brand over the sidebar, then breadcrumb, status
+    /// badges and quick actions. On macOS the traffic lights sit at its left.
+    fn topbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let store = self.store.read(cx);
         let wallet_name = store.wallet(self.wallet_id).map(|w| w.name.clone()).unwrap_or_default();
         let privacy = store.privacy;
         let demo = store.security.demo;
         let offline = !store.connected;
-        div()
+        let net = store.network.network_name.to_uppercase();
+        titlebar_area("topbar")
             .flex()
-            .items_center()
-            .gap_3()
-            .px_8()
-            .h(px(64.))
             .flex_none()
-            .border_b_1()
-            .border_color(theme::border())
+            .h(px(theme::TOPBAR_H))
+            .child(
+                // Continues the sidebar column upward.
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .flex_none()
+                    .w(px(SIDEBAR_W))
+                    .h_full()
+                    .pl(px(20. + theme::TRAFFIC_LIGHTS_W))
+                    .pr_4()
+                    .bg(theme::sidebar())
+                    .border_r_1()
+                    .border_color(theme::border())
+                    .child(logo(22.))
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(theme::text())
+                            .child("Chia"),
+                    ),
+            )
             .child(
                 div()
-                    .text_lg()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(theme::text())
-                    .child(self.page.title()),
-            )
-            .child(div().text_sm().text_color(theme::muted()).child(wallet_name))
-            .child(div().flex_1())
-            .when(offline, |d| {
-                d.child(badge("Reconnecting to daemon…", theme::danger(), theme::danger_soft()))
-            })
-            .when(demo, |d| {
-                d.child(badge("DEMO · no real funds", theme::warning(), theme::warning_soft()))
-            })
-            .child(
-                icon_button("privacy", if privacy { Icon::EyeOff } else { Icon::Eye }).on_click(
-                    cx.listener(move |this, _, _, cx| this.store.update(cx, |s, cx| s.set_privacy(!privacy, cx))),
-                ),
-            )
-            .child(
-                icon_button("refresh", Icon::Refresh).on_click(cx.listener(|this, _, _, cx| {
-                    this.store.update(cx, |s, cx| s.refresh_all(cx));
-                })),
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .px_4()
+                    .border_b_1()
+                    .border_color(theme::border())
+                    .child(div().text_sm().text_color(theme::muted()).truncate().child(wallet_name))
+                    .child(icon(Icon::ChevronRight).size_3().text_color(theme::muted()))
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(theme::text())
+                            .child(self.page.title()),
+                    )
+                    .child(div().flex_1())
+                    .when(offline, |d| {
+                        d.child(badge("Reconnecting…", theme::danger(), theme::danger_soft()))
+                    })
+                    .when(demo, |d| {
+                        d.child(badge("DEMO", theme::warning(), theme::warning_soft()))
+                    })
+                    .when(!net.is_empty(), |d| {
+                        d.child(badge(net, theme::accent_hi(), theme::accent_soft()))
+                    })
+                    .child(div().w(px(6.)))
+                    .child(
+                        icon_button("privacy", if privacy { Icon::EyeOff } else { Icon::Eye })
+                            .size(px(28.))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.store.update(cx, |s, cx| s.set_privacy(!privacy, cx))
+                            })),
+                    )
+                    .child(
+                        icon_button("refresh", Icon::Refresh)
+                            .size(px(28.))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.store.update(cx, |s, cx| s.refresh_all(cx));
+                            })),
+                    )
+                    .child(
+                        icon_button("topbar-settings", Icon::Settings)
+                            .size(px(28.))
+                            .on_click(cx.listener(|this, _, _, cx| this.open_settings_general(cx))),
+                    ),
             )
     }
 
@@ -1267,36 +1283,44 @@ impl Render for Shell {
             Page::Activity => self.activity(cx),
         };
         let fill_height = self.page == Page::Activity;
+        let content = div()
+            .id(("page", self.page as usize))
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .px_8()
+            .pt_6()
+            .pb_8()
+            .when(!fill_height, |d| d.overflow_y_scroll())
+            .child(
+                div()
+                    .flex_none()
+                    .pb_5()
+                    .text_2xl()
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(theme::text())
+                    .child(self.page.title()),
+            )
+            .child(if fill_height {
+                page
+            } else {
+                div().flex().flex_col().flex_none().child(page).into_any_element()
+            });
         div()
             .relative()
             .size_full()
             .flex()
+            .flex_col()
             .bg(theme::bg())
-            .child(self.sidebar(cx))
+            .child(self.topbar(cx))
             .child(
                 div()
                     .flex()
-                    .flex_col()
                     .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .child(self.header(cx))
-                    .child(
-                        div()
-                            .id(("page", self.page as usize))
-                            .flex()
-                            .flex_col()
-                            .flex_1()
-                            .min_h_0()
-                            .px_8()
-                            .py_6()
-                            .when(!fill_height, |d| d.overflow_y_scroll())
-                            .child(if fill_height {
-                                page
-                            } else {
-                                div().flex().flex_col().flex_none().child(page).into_any_element()
-                            }),
-                    ),
+                    .min_h_0()
+                    .child(self.sidebar(cx))
+                    .child(div().flex().flex_col().flex_1().min_w_0().h_full().child(content)),
             )
             .children(self.render_modal(cx))
     }
